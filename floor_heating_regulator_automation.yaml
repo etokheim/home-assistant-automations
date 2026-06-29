@@ -17,6 +17,8 @@ blueprint:
     
     - 🛡️ Safety first: Automatically turns off regulator if temperature readings become outdated
     
+    - 🔌 Respects thermostat off: Sets regulator to 0 when the climate entity is off or mode selector is not in active mode
+    
     - 📊 Intelligent ramping: Smoothly adjusts power to prevent overshooting while maintaining target
 
 
@@ -88,6 +90,21 @@ blueprint:
               step: 1
               unit_of_measurement: hours
 
+        mode_selector:
+          name: Mode Selector (Optional)
+          description: When set, automatic regulation runs only while this select entity matches the active mode. Otherwise the regulator is set to 0.
+          default:
+          selector:
+            entity:
+              domain: select
+
+        active_mode:
+          name: Active Mode
+          description: The mode selector value that enables automatic regulation
+          default: regulator
+          selector:
+            text:
+
         outdated_temperature_actions:
           name: Outdated Temperature Actions (Optional)
           description: Actions to execute when the temperature reading is outdated (e.g., send notifications, log events, etc.). Leave empty if no actions are needed.
@@ -108,6 +125,20 @@ actions:
       climate_entity_id: !input climate_entity
       statistics_sensor_entity: !input statistics_sensor
       outdated_threshold_hours: !input outdated_threshold_hours
+      mode_selector_entity: !input mode_selector
+      active_mode: !input active_mode
+
+      # Turn off regulator when thermostat is off or automatic mode is disabled
+      heating_disabled: >-
+        {%- set climate_state = states[climate_entity_id].state %}
+        {%- set hvac_mode = state_attr(climate_entity_id, 'hvac_mode') | default('') %}
+        {%- if climate_state == 'off' or hvac_mode == 'off' %}
+          true
+        {%- elif mode_selector_entity not in [none, '', 'None'] %}
+          {{ states(mode_selector_entity) != active_mode }}
+        {%- else %}
+          false
+        {%- endif %}
 
       # Get raw state values (without defaults - we'll validate them)
       regulator_value_raw: "{{ states[regulator_set_point_entity].state }}"
@@ -349,38 +380,41 @@ actions:
           {{ v | int }}
         {%- endif -%}
     enabled: true
-  # Check if there are any errors (validation failed or temperature outdated)
-  # If either fails, turn off regulator, log error, and run user actions
-  - if:
-      - condition: template
-        value_template: "{{ has_error }}"
-    then:
-      # Error condition - validation failed or temperature outdated
-      # Turn off regulator, log error, and execute user-provided actions
-      - event: logbook_entry
-        event_data:
-          name: Floor Heating Regulator
-          message: >-
-            Error: {{ combined_error_message }}.
-            Turning off regulator set point for safety.
-          entity_id: !input regulator_set_point
-      - action: number.set_value
-        metadata: {}
-        data:
-          value: "0"
-        target:
-          entity_id: !input regulator_set_point
-        enabled: true
-      - choose: []
-        default: !input outdated_temperature_actions
-    else:
-      # No errors - validation passed and temperature is fresh
-      # Set calculated regulator value
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ heating_disabled }}"
+        sequence:
+          - action: number.set_value
+            metadata: {}
+            data:
+              value: "0"
+            target:
+              entity_id: !input regulator_set_point
+      - conditions:
+          - condition: template
+            value_template: "{{ has_error }}"
+        sequence:
+          - event: logbook_entry
+            event_data:
+              name: Floor Heating Regulator
+              message: >-
+                Error: {{ combined_error_message }}.
+                Turning off regulator set point for safety.
+              entity_id: !input regulator_set_point
+          - action: number.set_value
+            metadata: {}
+            data:
+              value: "0"
+            target:
+              entity_id: !input regulator_set_point
+          - choose: []
+            default: !input outdated_temperature_actions
+    default:
       - action: number.set_value
         metadata: {}
         data:
           value: "{{ regulator_output_value }}"
         target:
           entity_id: !input regulator_set_point
-        enabled: true
 mode: single
