@@ -17,7 +17,7 @@ blueprint:
     
     - 🛡️ Safety first: Automatically turns off regulator if temperature readings become outdated
     
-    - 🔌 Respects thermostat off: Sets regulator to 0 when the climate entity is off or mode selector is not in active mode
+    - 🔌 Respects thermostat off: Sets regulator to 0 when the climate entity is off
     
     - 📊 Intelligent ramping: Smoothly adjusts power to prevent overshooting while maintaining target
 
@@ -68,17 +68,6 @@ blueprint:
       icon: mdi:cog-outline
       collapsed: true
       input:
-        # check_interval_minutes:
-        #   name: Check Interval (minutes)
-        #   description: How often to check and adjust the regulator (in minutes)
-        #   default: 5
-        #   selector:
-        #     number:
-        #       min: 1
-        #       max: 60
-        #       step: 1
-        #       unit_of_measurement: minutes
-
         outdated_threshold_hours:
           name: Outdated Threshold (hours)
           description: How many hours before a temperature reading is considered outdated
@@ -90,21 +79,6 @@ blueprint:
               step: 1
               unit_of_measurement: hours
 
-        mode_selector:
-          name: Mode Selector (Optional)
-          description: When set, automatic regulation runs only while this select entity matches the active mode. Otherwise the regulator is set to 0.
-          default:
-          selector:
-            entity:
-              domain: select
-
-        active_mode:
-          name: Active Mode
-          description: The mode selector value that enables automatic regulation
-          default: regulator
-          selector:
-            text:
-
         outdated_temperature_actions:
           name: Outdated Temperature Actions (Optional)
           description: Actions to execute when the temperature reading is outdated (e.g., send notifications, log events, etc.). Leave empty if no actions are needed.
@@ -113,10 +87,20 @@ blueprint:
             action: {}
 
 triggers:
-  - entity_id: !input climate_entity
-    trigger: state
-  - minutes: /5 # Doesnt work: !input check_interval_minutes
-    trigger: time_pattern
+  - trigger: state
+    entity_id: !input climate_entity
+  - trigger: state
+    entity_id: !input climate_entity
+    attribute: hvac_mode
+  - trigger: state
+    entity_id: !input climate_entity
+    from: "off"
+  - trigger: state
+    entity_id: !input climate_entity
+    attribute: hvac_mode
+    from: "off"
+  - trigger: time_pattern
+    minutes: "/5"
 actions:
   - variables:
       # Input values
@@ -125,20 +109,12 @@ actions:
       climate_entity_id: !input climate_entity
       statistics_sensor_entity: !input statistics_sensor
       outdated_threshold_hours: !input outdated_threshold_hours
-      mode_selector_entity: !input mode_selector
-      active_mode: !input active_mode
 
-      # Turn off regulator when thermostat is off or automatic mode is disabled
+      # Turn off regulator when thermostat is off
       heating_disabled: >-
         {%- set climate_state = states[climate_entity_id].state %}
         {%- set hvac_mode = state_attr(climate_entity_id, 'hvac_mode') | default('') %}
-        {%- if climate_state == 'off' or hvac_mode == 'off' %}
-          true
-        {%- elif mode_selector_entity not in [none, '', 'None'] %}
-          {{ states(mode_selector_entity) != active_mode }}
-        {%- else %}
-          false
-        {%- endif %}
+        {{ climate_state == 'off' or hvac_mode == 'off' }}
 
       # Get raw state values (without defaults - we'll validate them)
       regulator_value_raw: "{{ states[regulator_set_point_entity].state }}"
@@ -385,12 +361,16 @@ actions:
           - condition: template
             value_template: "{{ heating_disabled }}"
         sequence:
-          - action: number.set_value
-            metadata: {}
-            data:
-              value: "0"
-            target:
-              entity_id: !input regulator_set_point
+          - if:
+              - condition: template
+                value_template: "{{ regulator_value_raw | float(0) != 0 }}"
+            then:
+              - action: number.set_value
+                metadata: {}
+                data:
+                  value: "0"
+                target:
+                  entity_id: !input regulator_set_point
       - conditions:
           - condition: template
             value_template: "{{ has_error }}"
@@ -402,19 +382,27 @@ actions:
                 Error: {{ combined_error_message }}.
                 Turning off regulator set point for safety.
               entity_id: !input regulator_set_point
-          - action: number.set_value
-            metadata: {}
-            data:
-              value: "0"
-            target:
-              entity_id: !input regulator_set_point
+          - if:
+              - condition: template
+                value_template: "{{ regulator_value_raw | float(0) != 0 }}"
+            then:
+              - action: number.set_value
+                metadata: {}
+                data:
+                  value: "0"
+                target:
+                  entity_id: !input regulator_set_point
           - choose: []
             default: !input outdated_temperature_actions
     default:
-      - action: number.set_value
-        metadata: {}
-        data:
-          value: "{{ regulator_output_value }}"
-        target:
-          entity_id: !input regulator_set_point
+      - if:
+          - condition: template
+            value_template: "{{ regulator_output_value | float(0) != regulator_value_raw | float(-1) }}"
+        then:
+          - action: number.set_value
+            metadata: {}
+            data:
+              value: "{{ regulator_output_value }}"
+            target:
+              entity_id: !input regulator_set_point
 mode: single
