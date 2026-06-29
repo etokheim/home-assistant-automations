@@ -1,132 +1,131 @@
 blueprint:
   name: Fire Detection
-    description: >
-        Do things when signs of fire is detected (smoke, high temperatures).
+  description: >
+    Do things when signs of fire is detected (smoke, high temperatures).
 
-            ---
+    ---
 
-                Readme: The script mode is restart
-                  domain: automation
-                    input:
-                        smoke_detectors:
-                              name: Smoke Detectors
-                                    description: Select all smoke detectors
-                                          selector:
-                                                  entity:
-                                                            multiple: true
-                                                                      device_class:
-                                                                                  - smoke
+    Readme: The script mode is restart
+  domain: automation
+  source_url: https://github.com/etokheim/home-assistant-automations/blob/master/fire-detection.yaml
+  input:
+    smoke_detectors:
+      name: Smoke Detectors
+      description: Select all smoke detectors
+      selector:
+        entity:
+          multiple: true
+          device_class:
+            - smoke
 
-                                                                                      temperature_sensors:
-                                                                                            name: Temperature sensors
-                                                                                                  description: Select all relevant temperature sensors, which can serve as an indication of fire
-                                                                                                        selector:
-                                                                                                                entity:
-                                                                                                                          multiple: true
-                                                                                                                                    device_class:
-                                                                                                                                                - temperature
+    temperature_sensors:
+      name: Temperature sensors
+      description: Select all relevant temperature sensors, which can serve as an indication of fire
+      selector:
+        entity:
+          multiple: true
+          device_class:
+            - temperature
 
-                                                                                                                                                    temperature_threshold:
-                                                                                                                                                          name: Temperature threshold
-                                                                                                                                                                description: How hot the sensors should become before sending a temperature alert. Firealarms with this functionality triggers at ie. 64 degrees celsius or if the temperature rises by 20 in under a minute (warns when rising by 10).
-                                                                                                                                                                      default: 45
-                                                                                                                                                                            selector:
-                                                                                                                                                                                    number:
-                                                                                                                                                                                              min: 30
-                                                                                                                                                                                                        max: 80
-                                                                                                                                                                                                                  mode: slider
-                                                                                                                                                                                                                            step: 1.0
+    temperature_threshold:
+      name: Temperature threshold
+      description: How hot the sensors should become before sending a temperature alert. Firealarms with this functionality triggers at ie. 64 degrees celsius or if the temperature rises by 20 in under a minute (warns when rising by 10).
+      default: 45
+      selector:
+        number:
+          min: 30
+          max: 80
+          mode: slider
+          step: 1.0
 
-                                                                                                                                                                                                                                smoke_actions:
-                                                                                                                                                                                                                                      name: Smoke Actions (Optional)
-                                                                                                                                                                                                                                            description: >
-                                                                                                                                                                                                                                                    Ie. use a repeat action with notify or text to speech until the detector stops detecting. (Example available with the blueprint).
-                                                                                                                                                                                                                                                            <details><summary><code><strong>Useful variables (Click here):</strong></code></summary>
-                                                                                                                                                                                                                                                                    <code>
-                                                                                                                                                                                                                                                                              area_id(trigger.entity_id)
-                                                                                                                                                                                                                                                                                        area_name(trigger.entity_id)
-                                                                                                                                                                                                                                                                                                </code>
+    smoke_actions:
+      name: Smoke Actions (Optional)
+      description: >
+        Ie. use a repeat action with notify or text to speech until the detector stops detecting. (Example available with the blueprint).
+        <details><summary><code><strong>Useful variables (Click here):</strong></code></summary>
+        <code>
+        area_id(trigger.entity_id)
+        area_name(trigger.entity_id)
+        </code>
+      default:
+      selector:
+        action: {}
 
-                                                                                                                                                                                                                                                                                                      default:
-                                                                                                                                                                                                                                                                                                            selector:
-                                                                                                                                                                                                                                                                                                                    action: {}
+    smoke_cleared_actions:
+      name: Smoke Cleared Actions (Optional)
+      description: Any actions to run when the smoke alert is cleared (smoke isn't detected anymore).
+      default:
+      selector:
+        action: {}
 
-                                                                                                                                                                                                                                                                                                                        smoke_cleared_actions:
-                                                                                                                                                                                                                                                                                                                              name: Smoke Cleared Actions (Optional)
-                                                                                                                                                                                                                                                                                                                                    description: Any actions to run when the smoke alert is cleared (smoke isn't detected anymore).
-                                                                                                                                                                                                                                                                                                                                          default:
-                                                                                                                                                                                                                                                                                                                                                selector:
-                                                                                                                                                                                                                                                                                                                                                        action: {}
+    temperature_actions:
+      name: Temperature actions (Optional)
+      description: Overidden by Smoke Actions as long as a smoke detector is still detecting. Ie. use a repeat action with notify or text to speech until the detector stops detecting. (Example available with the blueprint).
+      default:
+      selector:
+        action: {}
 
-                                                                                                                                                                                                                                                                                                                                                            temperature_actions:
-                                                                                                                                                                                                                                                                                                                                                                  name: Temperature actions (Optional)
-                                                                                                                                                                                                                                                                                                                                                                        description: Overidden by Smoke Actions as long as a smoke detector is still detecting. Ie. use a repeat action with notify or text to speech until the detector stops detecting. (Example available with the blueprint).
-                                                                                                                                                                                                                                                                                                                                                                              default:
-                                                                                                                                                                                                                                                                                                                                                                                    selector:
-                                                                                                                                                                                                                                                                                                                                                                                            action: {}
+    temperature_cleared_actions:
+      name: Temperature cleared actions (Optional)
+      description: Any actions to run when the temperature alert is cleared (below the theshold again).
+      default:
+      selector:
+        action: {}
 
-                                                                                                                                                                                                                                                                                                                                                                                                temperature_cleared_actions:
-                                                                                                                                                                                                                                                                                                                                                                                                      name: Temperature cleared actions (Optional)
-                                                                                                                                                                                                                                                                                                                                                                                                            description: Any actions to run when the temperature alert is cleared (below the theshold again).
-                                                                                                                                                                                                                                                                                                                                                                                                                  default:
-                                                                                                                                                                                                                                                                                                                                                                                                                        selector:
-                                                                                                                                                                                                                                                                                                                                                                                                                                action: {}
-                                                                                                                                                                                                                                                                                                                                                                                                                                        
-                                                                                                                                                                                                                                                                                                                                                                                                                                        trigger:
-                                                                                                                                                                                                                                                                                                                                                                                                                                        - platform: state
-                                                                                                                                                                                                                                                                                                                                                                                                                                          entity_id: !input smoke_detectors
-                                                                                                                                                                                                                                                                                                                                                                                                                                            to: 'on'
-                                                                                                                                                                                                                                                                                                                                                                                                                                              id: smoke
+trigger:
+  - platform: state
+    entity_id: !input smoke_detectors
+    to: 'on'
+    id: smoke
 
-                                                                                                                                                                                                                                                                                                                                                                                                                                              - platform: numeric_state
-                                                                                                                                                                                                                                                                                                                                                                                                                                                entity_id: !input temperature_sensors
-                                                                                                                                                                                                                                                                                                                                                                                                                                                  above: !input temperature_threshold
-                                                                                                                                                                                                                                                                                                                                                                                                                                                    id: temperature
+  - platform: numeric_state
+    entity_id: !input temperature_sensors
+    above: !input temperature_threshold
+    id: temperature
 
-                                                                                                                                                                                                                                                                                                                                                                                                                                                    variables:
-                                                                                                                                                                                                                                                                                                                                                                                                                                                      smoke_detectors: !input smoke_detectors
+variables:
+  smoke_detectors: !input smoke_detectors
 
-                                                                                                                                                                                                                                                                                                                                                                                                                                                      action:
-                                                                                                                                                                                                                                                                                                                                                                                                                                                        choose:
-                                                                                                                                                                                                                                                                                                                                                                                                                                                            - conditions:
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                    - condition: trigger
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                              id: "smoke"
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              # Even if this was triggered by a temperature alert, run the smoke actions, if any detector is detecting
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      - condition: state
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                entity_id: !input smoke_detectors
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          state: "on"
+action:
+  choose:
+    - conditions:
+        - condition: trigger
+          id: "smoke"
 
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                sequence:
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        - repeat:
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    sequence:
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  - choose: []
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  default: !input smoke_actions
+        # Even if this was triggered by a temperature alert, run the smoke actions, if any detector is detecting
+        - condition: state
+          entity_id: !input smoke_detectors
+          state: "on"
 
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              until:
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            - condition: state
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            entity_id: !input smoke_detectors
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            state: "off"
+      sequence:
+        - repeat:
+            sequence:
+              - choose: []
+                default: !input smoke_actions
 
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    - choose: []
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              default: !input smoke_cleared_actions
+            until:
+              - condition: state
+                entity_id: !input smoke_detectors
+                state: "off"
 
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  - conditions:
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          - condition: trigger
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    id: "temperature"
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          sequence:
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  - repeat:
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              sequence:
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            - choose: []
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            default: !input temperature_actions
+        - choose: []
+          default: !input smoke_cleared_actions
 
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        until:
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      - condition: numeric_state
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      entity_id: !input temperature_sensors
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      below: !input temperature_threshold
+    - conditions:
+        - condition: trigger
+          id: "temperature"
+      sequence:
+        - repeat:
+            sequence:
+              - choose: []
+                default: !input temperature_actions
 
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              - choose: []
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        default: !input temperature_cleared_actions
+            until:
+              - condition: numeric_state
+                entity_id: !input temperature_sensors
+                below: !input temperature_threshold
 
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        mode: restart
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        
+        - choose: []
+          default: !input temperature_cleared_actions
+
+mode: restart
