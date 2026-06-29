@@ -13,7 +13,7 @@ blueprint:
 
     - 🎯 Predictive control: Calculates optimal set point based on temperature trends and time-to-target
     
-    - ⚡ Smart rounding: Set points are automatically rounded to steps of 5 (integers only - for compability's sake)
+    - ⚡ Smart rounding: Set points are automatically rounded to steps of 5 (0 = off, then 10–100)
     
     - 🛡️ Safety first: Automatically turns off regulator if temperature readings become outdated
     
@@ -288,8 +288,8 @@ actions:
               {{ ((calculated_value / 5) | round(0)) * 5 | int }}
             {%- endif %}
           {%- else %}
-            {# Won't cross below target soon - set to low value to allow cooling #}
-            {{ ((max_value * 0.1 / 5) | round(0)) * 5 | int }}
+            {# Won't cross below target soon - turn off to allow cooling #}
+            0
           {%- endif %}
 
         {# Case 4: Below target and not rising fast enough, or other scenarios #}
@@ -331,18 +331,23 @@ actions:
             {# Very close to target - use minimal value #}
             {{ ((max_value * 0.15 / 5) | round(0)) * 5 | int }}
           {%- elif above_target %}
-            {# Above target - use low value to allow cooling #}
-            {%- set excess_factor = (temp_delta_abs / 2.0) %}
-            {%- if excess_factor > 1.0 %}
-              {%- set excess_factor = 1.0 %}
-            {%- endif %}
-            {{ (((max_value * 0.1) * (1.0 - excess_factor * 0.5) / 5) | round(0)) * 5 | int }}
+            {# Above target - turn off to allow cooling #}
+            0
           {%- else %}
             {# Slightly below or at target - use moderate value to maintain #}
             {{ ((max_value * 0.25 / 5) | round(0)) * 5 | int }}
           {%- endif %}
         {%- endif %}
         {%- endif %}
+
+      # Round to 5% steps, but treat low values as off (0) not 5%
+      regulator_output_value: >-
+        {%- set v = regulator_final_value | float(0) -%}
+        {%- if v <= 5 -%}
+          0
+        {%- else -%}
+          {{ v | int }}
+        {%- endif -%}
     enabled: true
   # Check if there are any errors (validation failed or temperature outdated)
   # If either fails, turn off regulator, log error, and run user actions
@@ -374,7 +379,7 @@ actions:
       - action: number.set_value
         metadata: {}
         data:
-          value: "{{ regulator_final_value }}"
+          value: "{{ regulator_output_value }}"
         target:
           entity_id: !input regulator_set_point
         enabled: true
