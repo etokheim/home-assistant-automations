@@ -45,7 +45,7 @@ Keeps your Scene Extrapolation scene on a loop so lighting follows the time of d
 
 Predictive floor-heating control for regulators without their own sensor: nudges setpoints every few minutes using trend data so you hit target temp without overshooting.
 
-[![Add to Home Assistant](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fetokheim%2Fhome-assistant-automations%2Fblob%2Fmaster%2Ffloot_heating_regulator_automation.yaml)
+[![Add to Home Assistant](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fetokheim%2Fhome-assistant-automations%2Fblob%2Fmaster%2Ffloor_heating_regulator_automation.yaml)
 
 ---
 
