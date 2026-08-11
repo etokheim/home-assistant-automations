@@ -1,5 +1,5 @@
 blueprint:
-  name: 💃 Neighbor extended motion activated lights V2.1 🕺
+  name: 💃 Neighbor extended motion activated lights V2.2 🕺
   description: >
     ## 💃🕺🏃‍➡️🚶🐕🤺👶👩‍🦽🧍‍♀️🏃‍♀️‍➡️🏋️‍♀️🤸‍♂️👪💃
 
@@ -77,20 +77,10 @@ blueprint:
                 - binary_sensor.living_room_activity
           </details>
 
-    3. Create a timer helper for each room. Eg.: `[area name] + Light timer` 
+    3. Create a timer helper for each room. Eg.: `[area name] + Light timer`
 
-    4. Create an input boolean. Eg.: `[area name] + Automatic lights`
+    4. (Optional) Create a **global** input boolean to disable motion lights in all rooms at once. Per-room enable/disable is done by turning the **automation entity** on/off (not a per-room boolean).
 
-        - <details><summary>YAML example</summary>
-
-          ```yaml
-              living_room_automatic_lights:
-                name: Living Room Automatic Lights?
-                icon: mdi:motion-sensor
-          ```
-          </details>
-
-    4. If you don't have a global switch for turning off the automatic light behaviour, create one now. Eg.: `[area name] + Automatic lights`
         - <details><summary>YAML example</summary>
 
           ```yaml
@@ -118,9 +108,13 @@ blueprint:
             entity:
               domain: timer
 
+        # Kept so existing automations retain their configured entity_id if we re-enable this later.
         automatic_lights:
-          name: Automatic lights (this area)
-          description: Enables/disables the automations for this area (Required due to technical limitations).
+          name: "Automatic lights (this area) — DEPRECATED"
+          description: >
+            Deprecated. Per-room enable/disable is done by turning this automation
+            entity on/off. This field is ignored at runtime but kept so existing
+            configs are not dropped. You can clear it when convenient.
           default: # Optional field
           selector:
             entity:
@@ -128,7 +122,10 @@ blueprint:
 
         automatic_lights_global:
           name: Automatic lights (global)
-          description: Enables/disables the automations for this area. This is meant to be a a global toggle, used to disable motion activated lights all areas at once. (Required due to technical limitations).
+          description: >
+            Optional. Global toggle to disable motion-activated lights in all rooms
+            that use this helper. Prefer turning individual automation entities
+            off for per-room control.
           default: # Optional field
           selector:
             entity:
@@ -249,8 +246,9 @@ blueprint:
 
 trigger_variables:
   activity: !input activity
-  neighbor_activity: !input neighbor_activity  
-  automatic_lights_input: !input automatic_lights
+  neighbor_activity: !input neighbor_activity
+  # Retained so the deprecated blueprint input stays bound to existing configs.
+  automatic_lights_input_deprecated: !input automatic_lights
   automatic_lights_global_input: !input automatic_lights_global
 
 trigger:
@@ -264,23 +262,12 @@ trigger:
     value_template: "{{ is_state(neighbor_activity, 'on') }}"
     id: Neighbor Activity
 
-  - platform: template
-    #value_template: "{{ is_state(automatic_lights_input if automatic_lights_input is string else '', 'off') }}"
-    value_template:  "{{ is_state(automatic_lights_input, 'off') }}"
-    id: Disabled
-
-  - platform: template
-    #value_template: "{{ is_state(automatic_lights_input if automatic_lights_input is string else '', 'on') }}"
-    value_template: "{{ is_state(automatic_lights_input, 'on') }}"
-    id: Enabled
+  # Per-room input_boolean Enabled/Disabled triggers removed (V2.2): toggle the
+  # automation entity instead. Turning the automation off cancels a running run.
 
 condition:
   - condition: template
-    value_template: "{{ is_state(automatic_lights_input, 'on') if automatic_lights_input is not none else True }}" 
-    # "{{ is_state(automatic_lights_input, 'on') }}"
-  - condition: template
     value_template: "{{ is_state(automatic_lights_global_input, 'on') if automatic_lights_global_input is not none else True }}"
-    # "{{ is_state(automatic_lights_global_input, 'on') }}"
 
 variables:
   activity_actions: !input activity_actions
@@ -292,8 +279,8 @@ variables:
   light_sensitive: !input light_sensitive
   illuminance_threshold: !input illuminance_threshold
 
-  automatic_lights_input: !input automatic_lights
-  automatic_lights: "{{ states(automatic_lights_input) if automatic_lights_input is not none else 'on' }}"
+  # Deprecated per-room bool — still loaded so configs keep the input; ignored for gating.
+  automatic_lights_input_deprecated: !input automatic_lights
 
   automatic_lights_global_input: !input automatic_lights_global
   automatic_lights_global: "{{ states(automatic_lights_global_input) if automatic_lights_global_input is not none else 'on' }}"
@@ -355,7 +342,6 @@ action:
                       {{ illuminance_test_interval }}
                     {% endif %}
 
-                  automatic_lights: "{{ states(automatic_lights_input) if automatic_lights_input is not none else 'on' }}"
                   automatic_lights_global: "{{ states(automatic_lights_global_input) if automatic_lights_global_input is not none else 'on' }}"
               
               # Start with the delay, as the same actions run immediately in parallel 
@@ -366,8 +352,6 @@ action:
                 if:
                   - condition: template
                     value_template: "{{ automatic_lights_global == 'on' }}"
-                  - condition: template
-                    value_template: "{{ automatic_lights == 'on' }}"
                 then:
                   - alias: If below the threshold, turn on
                     if:
@@ -385,15 +369,9 @@ action:
                             - alias: Run Activity actions
                               condition: template
                               value_template: >
-                                {#
-                                  If triggered by Activity or
-                                  triggered by Neighbor Activity while Activity is on or
-                                  triggered by Enabled while Activity is on
-                                #}
                                 {{
                                   trigger.id == "Activity" or
-                                  trigger.id == "Neighbor Activity" and activity_detected or
-                                  trigger.id == "Enabled" and activity_detected
+                                  trigger.id == "Neighbor Activity" and activity_detected
                                 }}
                                 
                           sequence:
@@ -403,12 +381,7 @@ action:
                         - conditions:
                             - alias: Run Neighbor Activity actions
                               condition: template
-                              value_template: >
-                                {# If triggered by Neighbor Activity || triggered by Enabled while Neighbor Activity is on #}
-                                {{
-                                  trigger.id == "Neighbor Activity" or
-                                  trigger.id == "Enabled" and neighbor_activity_detected
-                                }}
+                              value_template: "{{ trigger.id == 'Neighbor Activity' }}"
 
                           sequence:
                             - choose: []
@@ -432,18 +405,6 @@ action:
     - alias: "Consider the triggers"
       choose:
         - conditions:
-            - alias: "Did the motion status become disabled?"
-              condition: trigger
-              id: Disabled
-          sequence:
-            - service: timer.cancel
-              target:
-                entity_id: !input timer
-            # We need to stop here, because we don't want the lights to be turned off when
-            # disabling the automatic lights toggle
-            - stop: Automatic lights was disabled
-
-        - conditions:
             # We treat events triggered by Neighbor Activity the same as Activity
             # when the Activity helper is on while Neighbor Activity helper is triggered.
             # This is because the script must use mode=restart, and as a result of that
@@ -452,15 +413,9 @@ action:
             - alias: Run Activity actions
               condition: template
               value_template: >
-                {#
-                  If triggered by Activity or
-                  triggered by Neighbor Activity while Activity is on or
-                  triggered by Enabled while Activity is on
-                #}
                 {{
                   trigger.id == "Activity" or
-                  trigger.id == "Neighbor Activity" and activity_detected or
-                  trigger.id == "Enabled" and activity_detected
+                  trigger.id == "Neighbor Activity" and activity_detected
                 }}
                 
           sequence:
@@ -539,12 +494,7 @@ action:
         - conditions:
             - alias: Run Neighbor Activity actions
               condition: template
-              value_template: >
-                {# If triggered by Neighbor Activity || triggered by Enabled while Neighbor Activity is on #}
-                {{
-                  trigger.id == "Neighbor Activity" or
-                  trigger.id == "Enabled" and neighbor_activity_detected
-                }}
+              value_template: "{{ trigger.id == 'Neighbor Activity' }}"
 
           sequence:
             # Pause the timer, if it's already running
@@ -573,7 +523,6 @@ action:
             - wait_template: "{{ states(neighbor_activity) == 'off' }}"
 
             - variables:
-                automatic_lights: "{{ states(automatic_lights_input) if automatic_lights_input is not none else 'on' }}"
                 automatic_lights_global: "{{ states(automatic_lights_global_input) if automatic_lights_global_input is not none else 'on' }}"
             
             # If there is more time left on the timer than neighbor_activity_duration, then don't update the timer's time
@@ -583,8 +532,6 @@ action:
                   {{ neighbor_activity_duration > time_left }}
               - condition: template
                 value_template: "{{ automatic_lights_global == 'on' }}"
-              - condition: template
-                value_template: "{{ automatic_lights == 'on' }}"
               then:
                 # The neighbor_activity_duration is longer than the remaining time of the timer.
                 # Start the timer with neightbor_activity_duration as the duration
@@ -616,15 +563,12 @@ action:
               entity_id: !input timer
 
   - variables:
-      automatic_lights: "{{ states(automatic_lights_input) if automatic_lights_input is not none else 'on' }}"
       automatic_lights_global: "{{ states(automatic_lights_global_input) if automatic_lights_global_input is not none else 'on' }}"
 
-  - alias: "Execute time out actions as long as the automatic_lights and automatic_lights_global are still on"
+  - alias: "Execute time out actions as long as the global automatic_lights helper is still on"
     if:
       - condition: template
         value_template: "{{ automatic_lights_global == 'on' }}"
-      - condition: template
-        value_template: "{{ automatic_lights == 'on' }}"
     then:
       - choose: []
         default: !input time_out_actions
