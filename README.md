@@ -1,6 +1,6 @@
 # home-assistant-automations
 
-Automation blueprints for Home Assistant — motion that respects the room next door, circadian scenes, and “please don’t flood the basement.”
+Automation blueprints for Home Assistant — motion that respects the room next door, and “please don’t flood the basement.”
 
 Installed here as a git submodule at `blueprints/automation/etokheim-automations/`.  
 Script blueprints live in [home-assistant-scripts](https://github.com/etokheim/home-assistant-scripts).
@@ -30,14 +30,6 @@ Classic version: turn lights on (or run actions) from motion here or next door, 
 The upgraded motion-light blueprint: more configuration, clearer timers, illuminance thresholds, and the same “never stumble in the dark” goal — with fewer compromises.
 
 [![Add to Home Assistant](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fetokheim%2Fhome-assistant-automations%2Fblob%2Fmaster%2Fneighbor_extended_motion_lights_v2.yaml)
-
----
-
-## Circadian rhythm lighting
-
-Keeps your Scene Extrapolation scene on a loop so lighting follows the time of day — stops when you turn the room off or when modifiers say “not now.” Requires [Scene Extrapolation](https://github.com/etokheim/scene-extrapolation).
-
-[![Add to Home Assistant](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fetokheim%2Fhome-assistant-automations%2Fblob%2Fmaster%2Fcontinuously_activate_scene.yaml)
 
 ---
 
