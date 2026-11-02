@@ -391,7 +391,7 @@ action:
                       - alias: If above the threshold, turn off the lights
                         if:
                           - condition: template
-                            value_template: "{{ light_sensor and states(light_sensor) > illuminance_threshold }}"
+                            value_template: "{{ light_sensor and is_number(states(light_sensor)) and states(light_sensor) | float(0) > illuminance_threshold | float(0) }}"
                         then:
                           # Turn off
                           - choose: []
@@ -446,7 +446,7 @@ action:
                     - alias: Only turn off the lights if (a light_sensor is defined and) the light_sensor's state is above the illuminance_threshold
                       if:
                         - condition: template
-                          value_template: "{{ light_sensor and states(light_sensor) > illuminance_threshold }}"
+                          value_template: "{{ light_sensor and is_number(states(light_sensor)) and states(light_sensor) | float(0) > illuminance_threshold | float(0) }}"
                       then:
                         - choose: []
                           default: !input time_out_actions
