@@ -53,6 +53,22 @@ blueprint:
         entity:
           domain: sensor
 
+    temperature_sensor:
+      name: Source Temperature Sensor (Optional)
+      description: Physical sensor feeding the climate helper. Used for validity and freshness.
+      default: ""
+      selector:
+        entity:
+          domain: sensor
+
+    temperature_last_seen:
+      name: Source Last Seen Sensor (Optional)
+      description: Timestamp of actual device contact (for example Zigbee2MQTT last_seen). Retained MQTT values can otherwise look fresh after restart.
+      default: ""
+      selector:
+        entity:
+          domain: sensor
+
     max_regulator_value:
       name: Maximum Regulator Value
       description: The maximum value the regulator can be set to
@@ -108,19 +124,21 @@ actions:
       regulator_set_point_entity: !input regulator_set_point
       climate_entity_id: !input climate_entity
       statistics_sensor_entity: !input statistics_sensor
+      temperature_sensor_entity: !input temperature_sensor
+      temperature_last_seen_entity: !input temperature_last_seen
       outdated_threshold_hours: !input outdated_threshold_hours
 
       # Turn off regulator when thermostat is off
       heating_disabled: >-
-        {%- set climate_state = states[climate_entity_id].state %}
+        {%- set climate_state = states(climate_entity_id) %}
         {%- set hvac_mode = state_attr(climate_entity_id, 'hvac_mode') | default('') %}
         {{ climate_state == 'off' or hvac_mode == 'off' }}
 
       # Get raw state values (without defaults - we'll validate them)
-      regulator_value_raw: "{{ states[regulator_set_point_entity].state }}"
-      target_temperature_raw: "{{ states[climate_entity_id].attributes.temperature }}"
-      temperature_raw: "{{ states[climate_entity_id].attributes.current_temperature }}"
-      average_temperature_raw: "{{ states[statistics_sensor_entity].state }}"
+      regulator_value_raw: "{{ states(regulator_set_point_entity) }}"
+      target_temperature_raw: "{{ state_attr(climate_entity_id, 'temperature') }}"
+      temperature_raw: "{{ state_attr(climate_entity_id, 'current_temperature') }}"
+      average_temperature_raw: "{{ states(statistics_sensor_entity) }}"
 
       # Validate that all required values are present and valid
       # Check if any value is None, "unknown", "unavailable", or empty
@@ -130,17 +148,20 @@ actions:
         {%- set curr_temp = temperature_raw %}
         {%- set avg_temp = average_temperature_raw %}
         {%- set errors = [] %}
-        {%- if reg_state is none or reg_state == "unknown" or reg_state == "unavailable" or reg_state == "" %}
-          {%- set _ = errors.append("Regulator set point is invalid: " ~ reg_state) %}
+        {%- if not is_number(reg_state) %}
+          {%- set errors = errors + ["Regulator set point is invalid: " ~ reg_state] %}
         {%- endif %}
-        {%- if target_temp is none or target_temp == "unknown" or target_temp == "unavailable" or target_temp == "" %}
-          {%- set _ = errors.append("Target temperature is invalid: " ~ target_temp) %}
+        {%- if not is_number(target_temp) %}
+          {%- set errors = errors + ["Target temperature is invalid: " ~ target_temp] %}
         {%- endif %}
-        {%- if curr_temp is none or curr_temp == "unknown" or curr_temp == "unavailable" or curr_temp == "" %}
-          {%- set _ = errors.append("Current temperature is invalid: " ~ curr_temp) %}
+        {%- if not is_number(curr_temp) %}
+          {%- set errors = errors + ["Current temperature is invalid: " ~ curr_temp] %}
         {%- endif %}
-        {%- if avg_temp is none or avg_temp == "unknown" or avg_temp == "unavailable" or avg_temp == "" %}
-          {%- set _ = errors.append("Average temperature is invalid: " ~ avg_temp) %}
+        {%- if not is_number(avg_temp) %}
+          {%- set errors = errors + ["Average temperature is invalid: " ~ avg_temp] %}
+        {%- endif %}
+        {%- if temperature_sensor_entity and not is_number(states(temperature_sensor_entity)) %}
+          {%- set errors = errors + ["Source temperature sensor is invalid: " ~ states(temperature_sensor_entity)] %}
         {%- endif %}
         {%- if errors | length > 0 %}
           {{ errors | join("; ") }}
@@ -176,7 +197,15 @@ actions:
 
       # Check if temperature reading is outdated
       seconds_since_last_temperature_update: >-
-        {{ as_timestamp(now()) - as_timestamp(states[climate_entity_id].last_updated) }}
+        {# Actual last_seen survives retained MQTT replay; helper updates do not measure sensor freshness. #}
+        {%- if temperature_last_seen_entity %}
+          {%- set reported = as_timestamp(states(temperature_last_seen_entity), 0) %}
+        {%- elif temperature_sensor_entity and has_value(temperature_sensor_entity) %}
+          {%- set reported = as_timestamp(states[temperature_sensor_entity].last_reported, 0) %}
+        {%- else %}
+          {%- set reported = as_timestamp(states[climate_entity_id].last_updated, 0) if has_value(climate_entity_id) else 0 %}
+        {%- endif %}
+        {{ as_timestamp(now()) - reported }}
       outdated_threshold_seconds: "{{ outdated_threshold_hours * 60 * 60 }}"
       # Check if temperature reading is outdated (only if validation passed, otherwise assume not outdated for error message)
       temperature_outdated: >-
@@ -190,11 +219,11 @@ actions:
       combined_error_message: >-
         {%- set errors = [] %}
         {%- if validation_error != "" %}
-          {%- set _ = errors.append("Validation errors: " ~ validation_error) %}
+          {%- set errors = errors + ["Validation errors: " ~ validation_error] %}
         {%- endif %}
         {%- if temperature_outdated %}
           {%- set hours_outdated = seconds_since_last_temperature_update / 3600 %}
-          {%- set _ = errors.append("Temperature reading is outdated (last updated " ~ hours_outdated | round(2) ~ " hours ago, threshold is " ~ outdated_threshold_hours ~ " hours)") %}
+          {%- set errors = errors + ["Temperature source contact is outdated or missing (age " ~ hours_outdated | round(2) ~ " hours, threshold is " ~ outdated_threshold_hours ~ " hours)"] %}
         {%- endif %}
         {%- if errors | length > 0 %}
           {{ errors | join("; ") }}
@@ -218,8 +247,8 @@ actions:
       # Calculate time to reach target temperature (in hours)
       # Positive if we need to heat up, negative if we're cooling down past target
       time_to_target_hours: >-
-        {%- set temp_delta = target_temperature - temperature %}
-        {%- if temperature_change_rate | abs > 0.01 %}
+        {%- if validation_error == "" and temperature_change_rate | abs > 0.01 %}
+          {%- set temp_delta = target_temperature - temperature %}
           {# Rate is significant, calculate time to target #}
           {{ temp_delta / temperature_change_rate }}
         {%- else %}
@@ -234,10 +263,10 @@ actions:
       temperature_falling: "{{ temperature_change_rate < -0.01 }}"
 
       # Determine if we are above target temperature
-      above_target: "{{ temperature > target_temperature }}"
+      above_target: "{{ validation_error == '' and temperature > target_temperature }}"
 
       # Determine if we are below target temperature
-      below_target: "{{ temperature < target_temperature }}"
+      below_target: "{{ validation_error == '' and temperature < target_temperature }}"
 
       # Calculate the optimal regulator set point based on temperature and trend
       # This directly calculates the best set point value rather than adjusting incrementally
@@ -392,8 +421,9 @@ actions:
                   value: "0"
                 target:
                   entity_id: !input regulator_set_point
-          - choose: []
-            default: !input outdated_temperature_actions
+              # Notify on safety-off transition, not every five minutes while stale.
+              - choose: []
+                default: !input outdated_temperature_actions
     default:
       - if:
           - condition: template
